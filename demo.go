@@ -23,14 +23,15 @@ package main
 import (
 	"flag"
 	"image"
+	"image/png"
 	"log"
-	"math"
 	"net"
 	"os"
 	"runtime/pprof"
 	"time"
 
-	"github.com/bradfitz/rfbgo/rfb"
+	"github.com/kbinani/screenshot"
+	"github.com/progrium/rfbgo/rfb"
 )
 
 var (
@@ -39,8 +40,8 @@ var (
 )
 
 const (
-	width  = 1280
-	height = 720
+	width  = 640
+	height = 480
 )
 
 func main() {
@@ -82,7 +83,7 @@ func handleConn(c *rfb.Conn) {
 	closec := make(chan bool)
 	go func() {
 		slide := 0
-		tick := time.NewTicker(time.Second / 30)
+		tick := time.NewTicker(time.Second / 24)
 		defer tick.Stop()
 		haveNewFrame := false
 		for {
@@ -98,9 +99,9 @@ func handleConn(c *rfb.Conn) {
 				return
 			case <-tick.C:
 				slide++
-				li.Lock()
+				//li.Lock()
 				drawImage(im, slide)
-				li.Unlock()
+				//li.Unlock()
 				haveNewFrame = true
 			}
 		}
@@ -113,28 +114,54 @@ func handleConn(c *rfb.Conn) {
 	log.Printf("Client disconnected")
 }
 
-func drawImage(im *image.RGBA, anim int) {
-	pos := 0
-	const border = 50
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			var r, g, b uint8
-			switch {
-			case x < border*2.5 && x < int((1.1+math.Sin(float64(y+anim*2)/40))*border):
-				r = 255
-			case x > width-border*2.5 && x > width-int((1.1+math.Sin(math.Pi+float64(y+anim*2)/40))*border):
-				g = 255
-			case y < border*2.5 && y < int((1.1+math.Sin(float64(x+anim*2)/40))*border):
-				r, g = 255, 255
-			case y > height-border*2.5 && y > height-int((1.1+math.Sin(math.Pi+float64(x+anim*2)/40))*border):
-				b = 255
-			default:
-				r, g, b = uint8(x+anim), uint8(y+anim), uint8(x+y+anim*3)
-			}
-			im.Pix[pos] = r
-			im.Pix[pos+1] = g
-			im.Pix[pos+2] = b
-			pos += 4 // skipping alpha
-		}
+func writeImage(im *image.RGBA) {
+	f, err := os.Create("image.png")
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	if err := png.Encode(f, im); err != nil {
+		f.Close()
+		log.Fatal(err)
+	}
+
+	if err := f.Close(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func drawImage(im *image.RGBA, anim int) {
+	rawImage, _ := screenshot.CaptureRect(image.Rect(0, 0, width, height))
+	for lenPix := 0; lenPix < len(rawImage.Pix); lenPix++ {
+		im.Pix[lenPix] = rawImage.Pix[lenPix]
+	}
+
+	// for x := 0; x < width; x++ {
+	// 	for y := 0; y < height; y++ {
+	// 		im.Set(x, y, subImage.At(x, y))
+	// 	}
+	// }
+	// pos := 0
+	// const border = 50
+	// for y := 0; y < height; y++ {
+	// 	for x := 0; x < width; x++ {
+	// 		var r, g, b uint8
+	// 		switch {
+	// 		case x < border*2.5 && x < int((1.1+math.Sin(float64(y+anim*2)/40))*border):
+	// 			r = 255
+	// 		case x > width-border*2.5 && x > width-int((1.1+math.Sin(math.Pi+float64(y+anim*2)/40))*border):
+	// 			g = 255
+	// 		case y < border*2.5 && y < int((1.1+math.Sin(float64(x+anim*2)/40))*border):
+	// 			r, g = 255, 255
+	// 		case y > height-border*2.5 && y > height-int((1.1+math.Sin(math.Pi+float64(x+anim*2)/40))*border):
+	// 			b = 255
+	// 		default:
+	// 			r, g, b = uint8(x+anim), uint8(y+anim), uint8(x+y+anim*3)
+	// 		}
+	// 		im.Pix[pos] = r
+	// 		im.Pix[pos+1] = g
+	// 		im.Pix[pos+2] = b
+	// 		pos += 4 // skipping alpha
+	// 	}
+	// }
 }

@@ -30,8 +30,8 @@ import (
 	"image"
 	"log"
 	"net"
-	"strconv"
 	"sync"
+	"time"
 )
 
 const (
@@ -310,11 +310,15 @@ func (c *Conn) pushFramesLoop() {
 			}
 			c.pushFrame(ur)
 		case li := <-c.feed:
+
 			c.mu.Lock()
 			c.last = li
 			c.mu.Unlock()
+			t := time.Now().UnixNano()
 			c.pushImage(li)
+			log.Printf("push time: %d", (time.Now().UnixNano()-t)/int64(time.Millisecond))
 		}
+
 	}
 }
 
@@ -576,9 +580,24 @@ func (c *Conn) handlePointerEvent() {
 }
 
 func inRange(v uint32, max uint16) uint32 {
-	switch max {
-	case 0x1f: // 5 bits
-		return v >> (16 - 5)
+	var rangeTable = map[uint16]uint32{
+		0x0:    0,
+		0x1:    1,
+		0x3:    2,
+		0x7:    3,
+		0xF:    4,
+		0x1F:   5,
+		0x3F:   6,
+		0x7F:   7,
+		0xFF:   8,
+		0x1FF:  9,
+		0x3FF:  10,
+		0x7FF:  11,
+		0xFFF:  12,
+		0x1FFF: 13,
+		0x3FFF: 14,
+		0x7FFF: 15,
+		0xFFFF: 16,
 	}
-	panic("todo; max value = " + strconv.Itoa(int(max)))
+	return v >> (16 - rangeTable[max])
 }
